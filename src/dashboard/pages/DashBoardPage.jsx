@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Box, Tooltip, MenuItem, Select, FormControl, InputLabel, Grid, Typography } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 
 export const DashBoardPage = () => {
@@ -45,6 +45,54 @@ export const DashBoardPage = () => {
     total: item.total,
     importeIVA: item.importeIVA
   }));
+
+  const paymentMethodTotals = XMLsData.reduce((acc, item) => {
+    acc[item.metodoPago] = (acc[item.metodoPago] || 0) + Number(item.total) + Number(item.importeIVA); // Sumamos el total y el IVA
+    return acc;
+  }, {});
+
+  // Calcular totales basados en los datos de totales agrupados por RFC
+  const totalsByRFC = XMLsData.reduce((acc, item) => {
+    const rfc = item.rfcEmisor;
+    const total = Number(item.total) + Number(item.importeIVA); // Sumamos el total y el IVA
+    acc[rfc] = (acc[rfc] || 0) + total;
+    return acc;
+  }, {});
+
+  // Preparar datos para el gráfico de barras de totales por método de pago
+  const dataForPaymentMethodChart = Object.entries(paymentMethodTotals).map(([method, total]) => ({
+      name: method,
+      Total: total
+  }));
+
+  const dataForBarChartRFC = Object.entries(totalsByRFC).map(([rfc, total]) => ({
+    rfc,
+    total
+  }));
+
+   // Calcular el total general de los subtotales y el total general del IVA
+   const totalSubtotal = XMLsData.reduce((acc, item) => {
+    const subtotal = Number(item.subtotal);
+    acc.subtotal += subtotal;
+    const importeIVA = Number(item.importeIVA);
+    acc.importeIVA += importeIVA;
+    return acc;
+  }, { subtotal: 0, importeIVA: 0 });
+
+  // Formatear los valores con separadores de miles y dos decimales
+  const formattedSubtotal = totalSubtotal.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formattedImporteIVA = totalSubtotal.importeIVA.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Preparar datos para la gráfica de pastel
+  const dataForPieChart = [
+    { name: `Subtotal (${formattedSubtotal})`, value: totalSubtotal.subtotal },
+    { name: `Importe IVA (${formattedImporteIVA})`, value: totalSubtotal.importeIVA }
+  ];
+
+  // Colores para las secciones del gráfico de pastel
+  const COLORS = ['#0088FE', '#38DA18'];
+
+
 
   return (
     <Box sx={{ padding: 3 }}>
@@ -112,6 +160,61 @@ export const DashBoardPage = () => {
             <Typography align="center">No hay datos disponibles para el gráfico de líneas.</Typography>
           )}
         </Grid>
+        <Grid item xs={12} md={6}>
+          <Typography variant="h5" gutterBottom align="center">
+            Totales por Método de Pago
+          </Typography>
+          <BarChart width={500} height={300} data={dataForPaymentMethodChart} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip formatter={(value) => value.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} />
+            <Legend />
+            <Bar dataKey="Total" fill="#82ca9d" />
+          </BarChart>
+        </Grid>
+
+
+        <Grid item xs={12} md={6}>
+          <Typography variant="h4" gutterBottom align="center">
+            Totales por RFC
+          </Typography>
+          <LineChart width={800} height={400} data={dataForLineChart}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="rfc" />
+            <YAxis />
+            <Tooltip formatter={(value) => value.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} />
+            <Legend />
+            <Line type="monotone" dataKey="total" stroke="#8884d8" name="Total" />
+        </LineChart>
+
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+        <PieChart width={800} height={400}>
+        <Pie
+          data={dataForPieChart}
+          cx="50%"
+          cy="50%"
+          labelLine={false}
+          label={(entry) => entry.name}
+          outerRadius={150}
+          fill="#8884d8"
+          dataKey="value"
+        >
+          {
+            dataForPieChart.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index]} />
+            ))
+          }
+        </Pie>
+        <Tooltip formatter={(value) => value.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} />
+        <Legend />
+      </PieChart>
+        </Grid>
+
+
+        
       </Grid>
     </Box>
   );
